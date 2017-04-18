@@ -10,7 +10,7 @@ import subprocess
 
 
 def usage():
-    print 'Usage: sls [-l|--list] [-u|--update <sls>]'
+    print 'Usage: sls [-i|--init] [-l|--list] [-u|--update <sls>]'
 
 
 def process_config(config):
@@ -41,9 +41,17 @@ def process_config(config):
     return config['source'], states
 
 
+def init_sls():
+    top_sls = open('top.sls', 'w')
+    top_sls.write('base:\n')
+    top_sls.write('  \'*\':\n')
+    top_sls.write('    - saltstates\n')
+    top_sls.close()
+
+
 def local_sls():
     sls = {}
-    dirs = [d for d in os.listdir('.') if os.path.isdir(d)]
+    dirs = [d for d in os.listdir('.') if os.path.isdir(d) and d != '.git']
     for d in dirs:
         try:
             with open("{}/VERSION".format(d,), 'r') as f:
@@ -153,7 +161,7 @@ def main():
         sys.exit(2)
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hilu:r:', ['help', 'install', 'list', 'update=', 'remove='])
+        opts, args = getopt.getopt(sys.argv[1:], 'hilu:', ['help', 'install', 'list', 'update='])
     except getopt.GetoptError as err:
         print str(err)
         usage()
@@ -162,6 +170,9 @@ def main():
     for o, a in opts:
         if o in ('-h', '--help'):
             usage()
+            sys.exit()
+        elif o in ('-i', '--init'):
+            init_sls()
             sys.exit()
         elif o in ('-l', '--list'):
             list_sls()
