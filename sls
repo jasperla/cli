@@ -1,12 +1,28 @@
 #!/usr/bin/env python
-import os
-import sys
+#
+# Copyright 2017 Jeroen Nijhof
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import getopt
+import os
 import requests
-import yaml
-import zipfile
 import shutil
 import subprocess
+import sys
+import tempfile
+import yaml
+import zipfile
 
 
 def usage():
@@ -16,7 +32,7 @@ def usage():
 def process_config(config):
     try:
         config = yaml.load(config)
-    except ValueError as err:
+    except ValueError:
         print 'ERROR: YAML decode error, please use valid YAML'
         sys.exit(2)
 
@@ -57,12 +73,12 @@ def local_sls():
             with open("{}/VERSION".format(d,), 'r') as f:
                 version = f.read()
             f.closed
-        except IOError as err:
+        except IOError:
             pass
 
         try:
             version = yaml.load(version)
-        except ValueError as err:
+        except ValueError:
             print 'ERROR: YAML decode error, please use valid YAML'
             sys.exit(2)
         sls[version['name']] = version['version']
@@ -73,7 +89,7 @@ def rm_sls(state):
     try:
         shutil.rmtree(state)
         print "removing sls: {}".format(state,)
-    except OSError as err:
+    except OSError:
         pass
     return
 
@@ -93,19 +109,20 @@ def update_sls(config, state):
 
 
 def download_sls(state, url):
-    local_filename = '/tmp/sls.zip'
+    local_tempfile = tempfile.NamedTemporaryFile(prefix='sls', suffix='.zip',
+                                                 mode='wb', delete=False)
     r = requests.get(url, stream=True)
-    with open(local_filename, 'wb') as f:
-        for chunk in r.iter_content(chunk_size=1024): 
-            if chunk: # filter out keep-alive new chunks
+    with local_tempfile as f:
+        for chunk in r.iter_content(chunk_size=1024):
+            if chunk:  # filter out keep-alive new chunks
                 f.write(chunk)
 
-    zip_ref = zipfile.ZipFile(local_filename, 'r')
+    zip_ref = zipfile.ZipFile(local_tempfile.name, 'r')
     extract_dir = zip_ref.namelist()[0]
     zip_ref.extractall('.')
     zip_ref.close()
     os.rename(extract_dir, state)
-    os.remove(local_filename)
+    os.remove(local_tempfile.name)
 
 
 def git_clone_sls(state, url):
@@ -124,7 +141,7 @@ def setup_sls(config):
             git_sls[state] = {}
             git_sls[state]['url'] = states[state][4:]
             continue
-        req = requests.post("{}/install".format(source,), data = {'sls':state, 'version':states[state]}).json()
+        req = requests.post("{}/install".format(source,), data={'sls': state, 'version': states[state]}).json()
         if 'error' in req:
             print "ERROR: {}: {}".format(state, req['error'])
             sys.exit(2)
